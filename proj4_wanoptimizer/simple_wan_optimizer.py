@@ -17,6 +17,8 @@ class WanOptimizer(wan_optimizer.BaseWanOptimizer):
     def __init__(self):
         wan_optimizer.BaseWanOptimizer.__init__(self)
         # Add any code that you like here (but do not add any constructor arguments).
+        self.hash_key = {}
+        self.hash_data = {}
         self.src_dest_buffer = {}
         return
 
@@ -48,7 +50,8 @@ class WanOptimizer(wan_optimizer.BaseWanOptimizer):
             else:
                 # Compute the hash and store the mapping
                 data = packet.payload
-                self.create_mapping(data, src, dest)
+
+                #self.create_mapping(data, src, dest)
             '''
             packet = tcp_packet.Packet(src, dest, True, is_fin, data)
             self.send(packet, self.address_to_port[packet.dest])
@@ -58,19 +61,23 @@ class WanOptimizer(wan_optimizer.BaseWanOptimizer):
             buff = self.src_dest_buffer[(src, dest)]
             if len(buff) >= self.BLOCK_SIZE:
                 data = buff[ :self.BLOCK_SIZE]
+                self.create_mapping(data, src, dest)
                 self.src_dest_buffer[(src, dest)] = buff[self.BLOCK_SIZE: ]
                 while (data):
                     payload = data[ :utils.MAX_PACKET_SIZE]
                     packet = tcp_packet.Packet(src, dest, True, False, payload)
-                    print "size data to client######################: \n", len(payload)
+                    # print "size data to client######################: \n", len(payload)
                     self.send(packet, self.address_to_port[packet.dest])
                     data = data[utils.MAX_PACKET_SIZE: ]
             if is_fin:
+                print "is_fin client"
                 data = self.src_dest_buffer[(src, dest)]
+                self.create_mapping(data, src, dest)
                 while (True):
                     payload = data[ :utils.MAX_PACKET_SIZE]
                     #print "data to client[Fin]#####################: \n", payload
                     if not data:
+                        print "TRUE3"
                         packet = tcp_packet.Packet(src, dest, True, True, payload)
                         self.send(packet, self.address_to_port[packet.dest])
                         self.src_dest_buffer[(src, dest)] = ""
@@ -101,43 +108,51 @@ class WanOptimizer(wan_optimizer.BaseWanOptimizer):
             # block size or the packect has is_fin = True
             buff = self.src_dest_buffer[(src, dest)]
             if len(buff) >= self.BLOCK_SIZE:
-                data = buff[ :self.BLOCK_SIZE]
+                payload = buff[ :self.BLOCK_SIZE]
                 self.src_dest_buffer[(src, dest)] = buff[self.BLOCK_SIZE: ]
 
                 # Hash the data if it is sent the first time, and store the mapping
-                while (data):
-                    payload = data[ :utils.MAX_PACKET_SIZE]
-                    if payload not in self.hash_key.values():
-                        self.create_mapping(payload, src, dest)
-                        is_raw_data = True
-                    else:
-                        payload = self.hash_data[payload]
-                        is_raw_data = False
+                if payload not in self.hash_key.values():
+                    self.create_mapping(payload, src, dest)
+                    is_raw_data = True
+                    while (payload):
+                        data = payload[ :utils.MAX_PACKET_SIZE]
+                        packet = tcp_packet.Packet(src, dest, is_raw_data, False, data)
+                        self.send(packet, self.wan_port)
+                        #print "size data to WAN####################: \n", len(data)
+                        payload = payload[utils.MAX_PACKET_SIZE: ]
+                else:
+                    payload = self.hash_data[payload]
+                    is_raw_data = False
                     packet = tcp_packet.Packet(src, dest, is_raw_data, False, payload)
-                    print "size data to WAN####################: \n", len(payload)
+                    #print "size data to WAN####################: \n", len(payload)
                     self.send(packet, self.wan_port)
-                    data = data[utils.MAX_PACKET_SIZE: ]
+                
             # If the packet has is_fin = True, send the remaing data
             if is_fin:
-                data = self.src_dest_buffer[(src, dest)]
-                while (True):
-                    payload = data[ :utils.MAX_PACKET_SIZE]
-                    if payload not in self.hash_key.values():
-                        self.create_mapping(payload, src, dest)
-                        is_raw_data = True
-                    else:
-                        payload = self.hash_data[payload]
-                        is_raw_data = False
-                    #print "data to WAN[Fin]###################: \n", payload
-                    if not data:
-                        packet = tcp_packet.Packet(src, dest, is_raw_data, True, payload)
+                payload = self.src_dest_buffer[(src, dest)]
+
+                if payload not in self.hash_key.values():
+                    self.create_mapping(payload, src, dest)
+                    is_raw_data = True
+                    while (True):
+                        data = payload[ :utils.MAX_PACKET_SIZE]
+                        if not data:
+                            packet = tcp_packet.Packet(src, dest, is_raw_data, True, data)
+                            self.send(packet, self.wan_port)
+                            self.src_dest_buffer[(src, dest)] = ""
+                            break
+                        packet = tcp_packet.Packet(src, dest, is_raw_data, False, data)
                         self.send(packet, self.wan_port)
-                        self.src_dest_buffer[(src, dest)] = ""
-                        break
-                   
-                    packet = tcp_packet.Packet(src, dest, is_raw_data, False, payload)
+                        payload = payload[utils.MAX_PACKET_SIZE: ]
+                else:
+                    payload = self.hash_data[payload]
+                    is_raw_data = False
+                    #print "data to WAN[Fin]###################: \n", payload
+                    packet = tcp_packet.Packet(src, dest, is_raw_data, True, payload)
                     self.send(packet, self.wan_port)
-                    data = data[utils.MAX_PACKET_SIZE: ]
+                self.src_dest_buffer[(src, dest)] = ""
+                
 
     def create_mapping(self, data, src, dest):
         key = utils.get_hash(data)
