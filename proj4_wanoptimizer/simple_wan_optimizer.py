@@ -48,14 +48,9 @@ class WanOptimizer(wan_optimizer.BaseWanOptimizer):
                 data = self.hash_key[packet.payload]
                 #packet = tcp_packet.Packet(src, dest, is_raw_data, is_fin, payload)
             else:
-                # Compute the hash and store the mapping
+                # Extract the data
                 data = packet.payload
-
-                #self.create_mapping(data, src, dest)
-            '''
-            packet = tcp_packet.Packet(src, dest, True, is_fin, data)
-            self.send(packet, self.address_to_port[packet.dest])
-            '''
+            
             self.src_dest_buffer[(src, dest)] += data
 
             buff = self.src_dest_buffer[(src, dest)]
@@ -70,14 +65,12 @@ class WanOptimizer(wan_optimizer.BaseWanOptimizer):
                     self.send(packet, self.address_to_port[packet.dest])
                     data = data[utils.MAX_PACKET_SIZE: ]
             if is_fin:
-                print "is_fin client"
                 data = self.src_dest_buffer[(src, dest)]
                 self.create_mapping(data, src, dest)
                 while (True):
                     payload = data[ :utils.MAX_PACKET_SIZE]
                     #print "data to client[Fin]#####################: \n", payload
                     if not data:
-                        print "TRUE3"
                         packet = tcp_packet.Packet(src, dest, True, True, payload)
                         self.send(packet, self.address_to_port[packet.dest])
                         self.src_dest_buffer[(src, dest)] = ""

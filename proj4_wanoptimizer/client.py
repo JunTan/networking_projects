@@ -78,12 +78,12 @@ class EndHost():
 
     def save_to_file(self):
         data = "".join(self.received_data)
-        print "100: ",data[:100]
+        # print "100: ",data[:100]
         data_start = 0
 
         # Extract the filename from the file
         filename_end = data.find(FILENAME_DELIMITER)
-        print filename_end
+        # print filename_end
         # If filename does not exist, raise an error
         if filename_end == -1:
             raise RuntimeError("Filename delimiter could not be found." +
